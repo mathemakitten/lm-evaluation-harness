@@ -36,26 +36,26 @@ class HFLM(BaseLM):
         # TODO: update this to be less of a hack once subfolder is fixed in HF
         revision = revision + ("/" + subfolder if subfolder is not None else "")
 
-        self.gpt2 = transformers.AutoModelForCausalLM.from_pretrained(
+        self.gpt2 = transformers.BloomForCausalLM.from_pretrained(
             pretrained,
             revision=revision,
         ).to(self.device)
         self.gpt2.eval()
 
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(
+        self.tokenizer = transformers.BloomTokenizerFast.from_pretrained(
             pretrained if tokenizer is None else tokenizer,
             revision=revision,
         )
 
-        assert isinstance(
-            self.tokenizer,
-            (
-                transformers.GPT2Tokenizer,
-                transformers.GPT2TokenizerFast,
-                transformers.T5Tokenizer,
-                transformers.T5TokenizerFast,
-            ),
-        ), "this tokenizer has not been checked for compatibility yet!"
+        # assert isinstance(
+        #     self.tokenizer,
+        #     (
+        #         transformers.GPT2Tokenizer,
+        #         transformers.GPT2TokenizerFast,
+        #         transformers.T5Tokenizer,
+        #         transformers.T5TokenizerFast,
+        #     ),
+        # ), "this tokenizer has not been checked for compatibility yet!"
 
         self.vocab_size = self.tokenizer.vocab_size
 
@@ -88,6 +88,7 @@ class HFLM(BaseLM):
             return self.gpt2.config.n_ctx
         except AttributeError:
             # gptneoconfig doesn't have n_ctx apparently
+            return 1024
             return self.gpt2.config.max_position_embeddings
 
     @property
@@ -119,7 +120,7 @@ class HFLM(BaseLM):
         logits returned from the model
         """
         with torch.no_grad():
-            return self.gpt2(inps)[0][:, :, :50257]
+            return self.gpt2(inps)[0][:, :, :self.vocab_size]
 
     def _model_generate(self, context, max_length, eos_token_id):
         return self.gpt2.generate(
